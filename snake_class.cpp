@@ -4,89 +4,60 @@
 
 #include "stdafx.h"
 #include "snake_class.h"
+#include <list>
+
+using std::list;
+
+Snake::Snake () {
+}
 
 /********************************************************/
-/* Constructor:											*/
+/* Init function:										*/
 /* Sets a starting point and direction					*/
 /********************************************************/
-Snake::Snake (int xpos, int ypos, int len, int size, int dir) {
+void Snake::Init (position hpos, const unsigned char len, const unsigned char size, direction d) {
 	int ctr;
 
-	setPosition (NULL);
+	if (!pos.empty ())
+		pos.clear ();
 
 	for (ctr = 0; ctr < len; ctr++) {
-		this->addHead (xpos + (ctr * size), ypos);
+		addHead (hpos);
+		hpos.xpos += size;
 	}
 
-	this->setDirection (dir);
-}
-
-void Snake::setPosition (position *newPos) {
-	pos = newPos;
-}
-
-void Snake::setDirection (int dir) {
-	direction = dir;
+	setDirection (d);
 }
 
 /********************************************************/
-/* Search for the last node, eg: next pointer is NULL	*/
-/* while keeping track of the previous node				*/
+/* Remove last coordinate								*/
 /********************************************************/
 void Snake::removeTail() {
-	position *currPos, *temp;
-
-	currPos = getPosition ();
-	while (currPos->next != NULL) {
-		temp = currPos;
-		currPos = currPos->next;
-	}
-	free (temp->next);
-	temp->next = NULL;
+	pos.pop_back ();
 }
 
 /********************************************************/
-/* Add a node at the start and set the next pointer		*/
-/* to point to the current head node					*/
-/* If first then set to NULL the previous pointer		*/
+/* Add the current head coordinate						*/
 /********************************************************/
-void Snake::addHead (int xpos, int ypos) {
-	position *newHeadPos, *currHeadPos;
-
-	/* Create new head node */
-	newHeadPos = new position;
-
-	newHeadPos->xpos = xpos;
-	newHeadPos->ypos = ypos;
-	newHeadPos->prev = NULL;
-
-	currHeadPos = this->getPosition();
-	newHeadPos->next = currHeadPos;
-	if (currHeadPos != NULL) {
-		currHeadPos->prev = newHeadPos;
-	}
-
-	this->setPosition (newHeadPos);
+void Snake::addHead (const position newHead) {
+	pos.push_front (newHead);
 }
 
-void Snake::moveOnwards (int xpos, int ypos) {
-	this->addHead (xpos, ypos);
-	this->removeTail ();
+void Snake::moveOnwards (const position newHead) {
+	addHead (newHead);
+	removeTail ();
 }
 
 /********************************************************/
 /* Checks the passed coordinate if it is not occupied	*/
 /* by the snake's body									*/
 /********************************************************/
-bool Snake::isCoordAvailable (int xpos, int ypos) {
-	position *currPos;
+bool Snake::isCoordAvailable (const position currPos) const {
+	list <position>::const_iterator bodyPos;
 
-	currPos = getPosition ();
-	while (currPos->next != NULL) {
-		if (currPos->xpos == xpos && currPos->ypos == ypos) {
-			return false;
-		}
-		currPos = currPos->next;
+	for (bodyPos = pos.begin (); bodyPos != pos.end (); bodyPos++) {
+		if (currPos == *bodyPos)
+			return (false);
 	}
 	return true;
 }

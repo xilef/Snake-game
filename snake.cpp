@@ -11,19 +11,14 @@
 #define MAP_HEIGHT 200
 #define INIT_LEN 5
 #define BODY_SIZE 10
-#define UP 72
-#define LEFT 75
-#define DOWN 80
-#define RIGHT 77
 
 /********************************************************/
 /* Global variables										*/
 /********************************************************/
 LPCWSTR class_name = L"SnakeClass";
 Snake* sn;
-int foodx, foody;
-int headx, heady;
-int score;
+position head, food;
+unsigned short score;
 bool start;
 
 /********************************************************/
@@ -44,9 +39,6 @@ int WINAPI WinMain (HINSTANCE hinst, HINSTANCE hpinst, LPSTR args, int nShowCmd)
 	MSG msg;
 	RECT rc;
 
-/********************************************************/
-/* Register window. Exit program if unsuccessfull.		*/
-/********************************************************/
 	ZeroMemory (&wc, sizeof (WNDCLASSEX));
 
 	wc.cbSize = sizeof (WNDCLASSEX);
@@ -57,40 +49,25 @@ int WINAPI WinMain (HINSTANCE hinst, HINSTANCE hpinst, LPSTR args, int nShowCmd)
 	wc.lpszMenuName = NULL;
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 
+	// Register window. Exit if unsucessfull.
 	if (!RegisterClassEx (&wc)) {
 		MessageBox (NULL, L"Cannot register window! Closing.", L"Error", MB_ICONERROR | MB_OK);
 		return 0;
 	}
 
-/********************************************************/
-/* Create window. Exit program if unsuccessfull			*/
-/********************************************************/
 	hwnd = GetDesktopWindow ();
 	GetWindowRect (hwnd, &rc);
 	hwnd = CreateWindowEx (NULL, class_name, L"Snake", 
 		WS_OVERLAPPED | WS_MINIMIZEBOX | WS_SYSMENU, rc.right / 3, rc.bottom / 3, MAP_WIDTH + (BODY_SIZE * 0.5), 
 							MAP_HEIGHT + (BODY_SIZE * 5), NULL, NULL, hinst, NULL);
 
+	// Create window. Exit if unsuccessfull.
 	if (hwnd == NULL) {
 		MessageBox (NULL, L"Cannot create window! Closing.", L"Error", MB_ICONERROR | MB_OK);
 		return 0;
 	}
 
 	ShowWindow (hwnd, nShowCmd);
-
-	while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE)) {
-		TranslateMessage (&msg);
-		DispatchMessage (&msg);
-	}
-
-	while (true) {
-		if (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE)) {
-			if (msg.message == WM_QUIT) {
-				break;
-			}
-			TranslateMessage (&msg);
-			DispatchMessage (&msg);
-		}
 
 /********************************************************/
 /* Main Snake logic										*/
@@ -103,34 +80,45 @@ int WINAPI WinMain (HINSTANCE hinst, HINSTANCE hpinst, LPSTR args, int nShowCmd)
 /* 4. Move the head towards the respective direction.	*/
 /* 5. Update the screen.								*/
 /********************************************************/
+	sn = new Snake ();
+
+	while (true) {
+		if (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE)) {
+			if (msg.message == WM_QUIT) {
+				break;
+			}
+			TranslateMessage (&msg);
+			DispatchMessage (&msg);
+		}
+
 		if (start) {
 			key_input ();
-			if (headx < 0 || headx >= MAP_WIDTH || heady < 0 || heady >= MAP_HEIGHT || !sn->isCoordAvailable (headx, heady)) {
+			if (head.xpos < 0 || head.xpos >= MAP_WIDTH || head.ypos < 0 || head.ypos >= MAP_HEIGHT || !sn->isCoordAvailable (head)) {
 				MessageBox (NULL, L"Game over! :(", L"Game Over", MB_ICONINFORMATION | MB_OK);
 				start = false;
 			}
 
-			if (headx == foodx && heady == foody) {
+			if (head == food) {
 				create_food ();
 				score += BODY_SIZE;
-				sn->addHead (headx, heady);
+				sn->addHead (head);
 			}
 			else {
-				sn->moveOnwards (headx, heady);
+				sn->moveOnwards (head);
 			}
 
 			switch (sn->getDirection ()) {
 				case UP:
-					heady -= BODY_SIZE;
+					head.ypos -= BODY_SIZE;
 					break;
 				case DOWN:
-					heady += BODY_SIZE;
+					head.ypos += BODY_SIZE;
 					break;
 				case LEFT:
-					headx -= BODY_SIZE;
+					head.xpos -= BODY_SIZE;
 					break;
 				case RIGHT: 
-					headx += BODY_SIZE;
+					head.xpos += BODY_SIZE;
 					break;
 			}
 
@@ -149,75 +137,66 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wparm, LPARAM lparm) {
 	PAINTSTRUCT ps;
 	HBRUSH hbr;
 	HFONT hf;
-	char buffer [10];
-	char *buff1 = "Press the enter key to start";
-	char *buff2 = "Press the q key to stop the game";
-	char *buff3 = "Press the x key to quit";
-	LPCWSTR enter = L"Press the enter key to start";
-	LPCWSTR stop1 = L"Press the q key to stop the game";
-	LPCWSTR quit = L"Press the x key to quit";
-	position *pos;
 
 	switch (msg) {
 		case WM_PAINT:
 			if (start) {
-				pos = sn->getPosition ();
 				hdc = BeginPaint (hwnd, &ps);
-
-/********************************************************/
-/* Draw food using the foodx and foody variables		*/
-/********************************************************/
+				
+				// Draw the food using the xpos and ypos of the food variable.
 				hbr = CreateSolidBrush (RGB (255, 0, 0));
 				SelectObject (hdc, hbr);
-				RoundRect (hdc, foodx, foody, foodx + BODY_SIZE, foody + BODY_SIZE, 20, 20);
+				RoundRect (hdc, food.xpos, food.ypos, food.xpos + BODY_SIZE, food.ypos + BODY_SIZE, 20, 20);
 
-/********************************************************/
-/* Draw the snake using the coords in the queue			*/
-/********************************************************/
+				// Draw the snake
 				hbr = CreateSolidBrush (RGB (0, 255, 0));
 				SelectObject (hdc, hbr);
-				while (pos != NULL) {
-					RoundRect (hdc, pos->xpos, pos->ypos, pos->xpos + BODY_SIZE, pos->ypos + BODY_SIZE, 20, 20);
-					pos = pos->next;
-				}
+				
+				list <position> pos = sn->getPosition ();
+				list <position>::iterator curr;
+
+				for (curr = pos.begin (); curr != pos.end (); curr++)
+					RoundRect (hdc, curr->xpos, curr->ypos, curr->xpos + BODY_SIZE, curr->ypos + BODY_SIZE, 20, 20);
 
 				MoveToEx (hdc, 0, 200, NULL);
 				LineTo (hdc, MAP_WIDTH + (BODY_SIZE * 1), 200);
 
-/********************************************************/
-/* Draw the score										*/
-/********************************************************/
+				// Output the score
 				hf = CreateFont(15, 7, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, 
 									OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, 
 									DEFAULT_PITCH | FF_ROMAN, L"Times New Roman");
 				SelectObject (hdc, hf);
 				SetBkMode (hdc, TRANSPARENT);
 				TextOut (hdc, 10, 200, L"Score: ", 7);
-				sprintf_s (buffer, 10, "%d", score);
-				TextOutA (hdc, 50, 200, buffer, strlen (buffer));
+				char buff [3];
+				wchar_t buf [3];
+				_itoa (score, buff, 10);
+				mbstowcs (buf, buff, 3);
+				TextOut (hdc, 50, 200, buf, wcslen (buf));
 
 				DeleteObject (hf);
 				DeleteObject (hbr);
 				DeleteDC (hdc);
 			}
 			else {
-
-/********************************************************/
-/* Main menu											*/
-/********************************************************/
+				// Draw the main menu.
 				hdc = BeginPaint (hwnd, &ps);
 				hf = CreateFont(15, 7, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, 
 									OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, 
 									DEFAULT_PITCH | FF_ROMAN, L"Times New Roman");
 				SelectObject (hdc, hf);
 				SetBkMode (hdc, TRANSPARENT);
-				TextOut (hdc, 20, 90, enter, strlen (buff1));
-				TextOut (hdc, 0, 105, stop1, strlen (buff2));
-				TextOut (hdc, 30, 120, quit, strlen (buff3));
+				LPCWSTR enter = L"Press the enter key to start";
+				LPCWSTR stop1 = L"Press the q key to stop the game";
+				LPCWSTR quit = L"Press the x key to quit";
+				TextOut (hdc, 20, 90, enter, wcslen (enter));
+				TextOut (hdc, 0, 105, stop1, wcslen (stop1));
+				TextOut (hdc, 30, 120, quit, wcslen (quit));
 				DeleteObject (hf);
 				EndPaint (hwnd, &ps);
 			}
 			return 0;
+
 /********************************************************/
 /* Keyboard input handler								*/
 /* 0x0D = carriage return/enter							*/
@@ -267,22 +246,20 @@ LRESULT CALLBACK WndProc (HWND hwnd, UINT msg, WPARAM wparm, LPARAM lparm) {
 }
 
 void init () {
-	headx = 0;
-	heady = 0;
-	sn = new Snake (headx, heady, INIT_LEN, BODY_SIZE, RIGHT);
-	headx += (INIT_LEN * BODY_SIZE);
-	srand ((unsigned) time (0));
+	head.xpos = 0;
+	head.ypos = 0;
+	sn->Init (head, INIT_LEN, BODY_SIZE, RIGHT);
+	head.xpos += (INIT_LEN * BODY_SIZE);
 	create_food ();
 	score = 0;
 }
 
 void create_food () {
+	srand ((unsigned) time (0));
 	do {
-		foodx = rand () % ((MAP_WIDTH / BODY_SIZE) - 1);
-		foody = rand () % ((MAP_HEIGHT / BODY_SIZE) - 1);
-		foodx *= BODY_SIZE;
-		foody *= BODY_SIZE;
-	} while (!sn->isCoordAvailable (foodx, foody));
+		food.xpos = (rand () % ((MAP_WIDTH / BODY_SIZE) - 1)) * BODY_SIZE;
+		food.ypos = (rand () % ((MAP_HEIGHT / BODY_SIZE) - 1)) * BODY_SIZE;
+	} while (!sn->isCoordAvailable (food));
 }
 
 /********************************************************/
